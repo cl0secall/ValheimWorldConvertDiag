@@ -78,6 +78,11 @@ namespace ValheimWorldConvertDiag
             if (itemData == null) throw new TypeLoadException("Could not find Valheim type ItemDrop+ItemData");
             if (zdo == null) throw new TypeLoadException("Could not find Valheim type ZDO");
 
+            MethodInfo convertContainers = zdoMan.GetMethods(AllMethods)
+                .FirstOrDefault(m => m.Name == "ConvertContainers");
+            if (convertContainers == null)
+                throw new MissingMethodException("Could not find ZDOMan.ConvertContainers");
+
             MethodInfo convertInventories = zdoMan.GetMethods(AllMethods)
                 .FirstOrDefault(m => m.Name == "ConvertInventories");
             if (convertInventories == null)
@@ -129,6 +134,11 @@ namespace ValheimWorldConvertDiag
                 .ToList();
 
             harmony.Patch(
+                convertContainers,
+                prefix: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(ConvertContainersPrefix)),
+                finalizer: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(ConvertContainersFinalizer)));
+
+            harmony.Patch(
                 convertInventories,
                 prefix: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(ConvertInventoriesPrefix)),
                 finalizer: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(ConvertInventoriesFinalizer)));
@@ -163,6 +173,50 @@ namespace ValheimWorldConvertDiag
             }
 
             Write($"Patched: ConvertInventories=1, LoadOld=1, AddItem(string)={addItemStringMethods.Count}, AddTempItem={addTempItemMethods.Count}, IsSameType={isSameTypeMethods.Count}, ZDO inventory getters={zdoInventoryGetterMethods.Count}");
+        }
+
+        public static void ConvertContainersPrefix(MethodBase __originalMethod, object[] __args)
+        {
+            SafeDiagnostic(() =>
+            {
+                lock (Sync)
+                {
+                    InWorldConversion = true;
+                    CurrentInventory = "<not started>";
+                    CurrentZdo = "<none yet>";
+                    InventorySourceZdo = "<none yet>";
+                    LastNamedItem = "<none>";
+                    LastTempItem = "<none>";
+                    LastComparison = "<none>";
+                    RecentNamedItems.Clear();
+                }
+
+                Write("=== LEGACY WORLD CONTAINER CONVERSION STARTED ===");
+                Write("ConvertContainers args: " + FormatArguments(__originalMethod, __args));
+            });
+        }
+
+        public static Exception ConvertContainersFinalizer(Exception __exception)
+        {
+            SafeDiagnostic(() =>
+            {
+                if (__exception != null)
+                {
+                    Write("=== ConvertContainers EXITED WITH EXCEPTION ===");
+                    WriteFailureReport(__exception, null);
+                }
+                else
+                {
+                    Write("=== LEGACY WORLD CONTAINER CONVERSION COMPLETED ===");
+                }
+
+                lock (Sync)
+                {
+                    InWorldConversion = false;
+                }
+            });
+
+            return __exception;
         }
 
         public static void ConvertInventoriesPrefix(MethodBase __originalMethod, object[] __args)
