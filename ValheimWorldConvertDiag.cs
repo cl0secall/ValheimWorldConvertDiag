@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using BepInEx;
 using BepInEx.Logging;
@@ -88,6 +89,11 @@ namespace ValheimWorldConvertDiag
             if (convertInventories == null)
                 throw new MissingMethodException("Could not find ZDOMan.ConvertInventories");
 
+            MethodInfo load = inventory.GetMethods(AllMethods)
+                .FirstOrDefault(m => m.Name == "Load");
+            if (load == null)
+                throw new MissingMethodException("Could not find Inventory.Load");
+
             MethodInfo loadOld = inventory.GetMethods(AllMethods)
                 .FirstOrDefault(m => m.Name == "LoadOld");
             if (loadOld == null)
@@ -147,6 +153,11 @@ namespace ValheimWorldConvertDiag
                 loadOld,
                 prefix: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(InventoryLoadOldPrefix)),
                 finalizer: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(InventoryLoadOldFinalizer)));
+
+            harmony.Patch(
+                load,
+                prefix: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(InventoryLoadPrefix)),
+                finalizer: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(InventoryLoadFinalizer)));
 
             foreach (MethodInfo method in addItemStringMethods)
             {
@@ -263,6 +274,46 @@ namespace ValheimWorldConvertDiag
             return __exception;
         }
 
+        public static void InventoryLoadPrefix(object __instance, MethodBase __originalMethod, object[] __args)
+        {
+            if (!InWorldConversion) return;
+
+            SafeDiagnostic(() =>
+            {
+                lock (Sync)
+                {
+                    CurrentInventory = DescribeInventory(__instance);
+
+                    if (__args != null && __args.Length > 0 && __args[0] != null)
+                    {
+                        object pkg = __args[0];
+                        CurrentZdo = "ZPackage: " + FormatSimple(pkg);
+                    }
+                    else
+                    {
+                        CurrentZdo = "ZPackage: <no args>";
+                    }
+                    InventorySourceZdo = CurrentZdo;
+                    LastNamedItem = "<none in this inventory yet>";
+                    LastTempItem = "<none in this inventory yet>";
+                    LastComparison = "<none in this inventory yet>";
+                    RecentNamedItems.Clear();
+                }
+            });
+        }
+
+        public static Exception InventoryLoadFinalizer(Exception __exception, object __instance)
+        {
+            if (!InWorldConversion || __exception == null) return __exception;
+
+            SafeDiagnostic(() =>
+            {
+                Write("!!! Inventory.Load FAILED !!!");
+                WriteFailureReport(__exception, __instance);
+            });
+
+            return __exception;
+        }
         public static void InventoryLoadOldPrefix(object __instance, MethodBase __originalMethod, object[] __args)
         {
             if (!InWorldConversion) return;
