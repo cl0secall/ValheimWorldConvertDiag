@@ -21,6 +21,7 @@ namespace ValheimWorldConvertDiag
 
         internal static ManualLogSource Log;
         internal static readonly object Sync = new object();
+        internal static bool InContainerConversion;
         internal static bool InWorldConversion;
         internal static string CurrentInventory = "<none>";
         internal static string CurrentZdo = "<none>";
@@ -183,7 +184,7 @@ namespace ValheimWorldConvertDiag
                     prefix: new HarmonyMethod(typeof(ValheimWorldConvertDiagPlugin), nameof(ZdoInventoryGetterPrefix)));
             }
 
-            Write($"Patched: ConvertInventories=1, LoadOld=1, AddItem(string)={addItemStringMethods.Count}, AddTempItem={addTempItemMethods.Count}, IsSameType={isSameTypeMethods.Count}, ZDO inventory getters={zdoInventoryGetterMethods.Count}");
+            Write($"Patched: ConvertContainers=1, ConvertInventories=1, Load=1, LoadOld=1, AddItem(string)={addItemStringMethods.Count}, AddTempItem={addTempItemMethods.Count}, IsSameType={isSameTypeMethods.Count}, ZDO inventory getters={zdoInventoryGetterMethods.Count}");
         }
 
         public static void ConvertContainersPrefix(MethodBase __originalMethod, object[] __args)
@@ -192,7 +193,7 @@ namespace ValheimWorldConvertDiag
             {
                 lock (Sync)
                 {
-                    InWorldConversion = true;
+                    InContainerConversion = true;
                     CurrentInventory = "<not started>";
                     CurrentZdo = "<none yet>";
                     InventorySourceZdo = "<none yet>";
@@ -223,7 +224,7 @@ namespace ValheimWorldConvertDiag
 
                 lock (Sync)
                 {
-                    InWorldConversion = false;
+                    InContainerConversion = false;
                 }
             });
 
@@ -276,7 +277,7 @@ namespace ValheimWorldConvertDiag
 
         public static void InventoryLoadPrefix(object __instance, MethodBase __originalMethod, object[] __args)
         {
-            if (!InWorldConversion) return;
+            if (!InWorldConversion && !InContainerConversion) return;
 
             SafeDiagnostic(() =>
             {
@@ -304,7 +305,7 @@ namespace ValheimWorldConvertDiag
 
         public static Exception InventoryLoadFinalizer(Exception __exception, object __instance)
         {
-            if (!InWorldConversion || __exception == null) return __exception;
+            if (!InWorldConversion && !InContainerConversion || __exception == null) return __exception;
 
             SafeDiagnostic(() =>
             {
@@ -316,7 +317,7 @@ namespace ValheimWorldConvertDiag
         }
         public static void InventoryLoadOldPrefix(object __instance, MethodBase __originalMethod, object[] __args)
         {
-            if (!InWorldConversion) return;
+            if (!InWorldConversion && !InContainerConversion) return;
 
             SafeDiagnostic(() =>
             {
@@ -334,7 +335,7 @@ namespace ValheimWorldConvertDiag
 
         public static Exception InventoryLoadOldFinalizer(Exception __exception, object __instance)
         {
-            if (!InWorldConversion || __exception == null) return __exception;
+            if (!InWorldConversion && !InContainerConversion || __exception == null) return __exception;
 
             SafeDiagnostic(() =>
             {
@@ -347,7 +348,7 @@ namespace ValheimWorldConvertDiag
 
         public static void AddItemStringPrefix(MethodBase __originalMethod, object __instance, object[] __args)
         {
-            if (!InWorldConversion) return;
+            if (!InWorldConversion && !InContainerConversion) return;
 
             SafeDiagnostic(() =>
             {
@@ -365,7 +366,7 @@ namespace ValheimWorldConvertDiag
 
         public static void AddTempItemPrefix(MethodBase __originalMethod, object __instance, object[] __args)
         {
-            if (!InWorldConversion) return;
+            if (!InWorldConversion && !InContainerConversion) return;
 
             SafeDiagnostic(() =>
             {
@@ -379,7 +380,7 @@ namespace ValheimWorldConvertDiag
 
         public static void ZdoInventoryGetterPrefix(object __instance, MethodBase __originalMethod, object[] __args)
         {
-            if (!InWorldConversion || __args == null || __args.Length == 0) return;
+            if (!InWorldConversion && !InContainerConversion || __args == null || __args.Length == 0) return;
 
             SafeDiagnostic(() =>
             {
@@ -401,7 +402,7 @@ namespace ValheimWorldConvertDiag
 
         public static void IsSameTypePrefix(object __instance, MethodBase __originalMethod, object[] __args)
         {
-            if (!InWorldConversion) return;
+            if (!InWorldConversion && !InContainerConversion) return;
 
             SafeDiagnostic(() =>
             {
